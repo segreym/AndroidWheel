@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="wheel">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/bin/wheel.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
