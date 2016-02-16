@@ -1,0 +1,38 @@
+# OS utility files
+.DS_Store
+**/.DS_Store
+*.swp
+*.lock
+
+# Other VCS
+.svn
+CVS/*
+**/CVS/*
+.cvsignore
+*/.cvsignore
+.hg/
+.hgignore
+.hgsigs
+.hgsub
+.hgsubstate
+.hgtags
+
+# Build files
+.gradle/
+gen/
+out/
+build/
+dist/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+**/*.iml
+.classpath
+.project
+
+# Local settings
+local.properties
+gradle.properties
