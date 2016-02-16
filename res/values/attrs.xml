@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+    <declare-styleable name="WheelView">
+        <attr name="topShadow" format="reference"/>
+        <attr name="bottomShadow" format="reference"/>
+        <attr name="centerDrawable" format="reference"/>
+    </declare-styleable>
+</resources>

@@ -28,10 +28,12 @@ import android.view.GestureDetector.SimpleOnGestureListener;
 import android.view.animation.Interpolator;
 import android.widget.Scroller;
 
+import java.lang.ref.WeakReference;
+
 /**
  * Scroller class handles scrolling events and updates the 
  */
-public class WheelScroller {
+public class WheelScroller implements Handler.Callback {
     /**
      * Scrolling listener interface
      */
@@ -57,12 +59,16 @@ public class WheelScroller {
          */
         void onJustify();
     }
-    
-    /** Scrolling duration */
-    private static final int SCROLLING_DURATION = 400;
 
     /** Minimum delta for scrolling */
     public static final int MIN_DELTA_FOR_SCROLLING = 1;
+
+    /** Scrolling duration */
+    private static final int SCROLLING_DURATION = 400;
+
+    // Messages
+    private static final int MESSAGE_SCROLL = 0;
+    private static final int MESSAGE_JUSTIFY = 1;
 
     // Listener
     private ScrollingListener listener;
@@ -71,11 +77,14 @@ public class WheelScroller {
     private Context context;
     
     // Scrolling
-    private GestureDetector gestureDetector;
+    private final GestureDetector gestureDetector;
     private Scroller scroller;
     private int lastScrollY;
     private float lastTouchedY;
     private boolean isScrollingPerformed;
+
+    // animation handler
+    private final Handler animationHandler;
 
     /**
      * Constructor
@@ -83,13 +92,14 @@ public class WheelScroller {
      * @param listener the scrolling listener
      */
     public WheelScroller(Context context, ScrollingListener listener) {
-        gestureDetector = new GestureDetector(context, gestureListener);
+        gestureDetector = new GestureDetector(context, new WheelGestureListener(this));
         gestureDetector.setIsLongpressEnabled(false);
         
         scroller = new Scroller(context);
 
         this.listener = listener;
         this.context = context;
+        this.animationHandler = new Handler(this);
     }
     
     /**
@@ -127,7 +137,7 @@ public class WheelScroller {
     /**
      * Handles Touch event 
      * @param event the motion event
-     * @return
+     * @return boolean
      */
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getAction()) {
@@ -154,29 +164,31 @@ public class WheelScroller {
 
         return true;
     }
-    
-    // gesture listener
-    private SimpleOnGestureListener gestureListener = new SimpleOnGestureListener() {
-        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            // Do scrolling in onTouchEvent() since onScroll() are not call immediately
-            //  when user touch and move the wheel
-            return true;
-        }
-        
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            lastScrollY = 0;
-            final int maxY = 0x7FFFFFFF;
-            final int minY = -maxY;
-            scroller.fling(0, lastScrollY, 0, (int) -velocityY, 0, 0, minY, maxY);
-            setNextMessage(MESSAGE_SCROLL);
-            return true;
-        }
-    };
 
-    // Messages
-    private final int MESSAGE_SCROLL = 0;
-    private final int MESSAGE_JUSTIFY = 1;
-    
+    @Override public boolean handleMessage(final Message msg) {
+        scroller.computeScrollOffset();
+        int currY = scroller.getCurrY();
+        int delta = lastScrollY - currY;
+        lastScrollY = currY;
+        if (delta != 0) {
+            listener.onScroll(delta);
+        }
+
+        // scrolling is not finished when it comes to final Y
+        // so, finish it manually 
+        if (Math.abs(currY - scroller.getFinalY()) < MIN_DELTA_FOR_SCROLLING) {
+            scroller.forceFinished(true);
+        }
+        if (!scroller.isFinished()) {
+            animationHandler.sendEmptyMessage(msg.what);
+        } else if (msg.what == MESSAGE_SCROLL) {
+            justify();
+        } else {
+            finishScrolling();
+        }
+        return true;
+    }
+
     /**
      * Set next message to queue. Clears queue before.
      * 
@@ -194,33 +206,6 @@ public class WheelScroller {
         animationHandler.removeMessages(MESSAGE_SCROLL);
         animationHandler.removeMessages(MESSAGE_JUSTIFY);
     }
-    
-    // animation handler
-    private Handler animationHandler = new Handler() {
-        public void handleMessage(Message msg) {
-            scroller.computeScrollOffset();
-            int currY = scroller.getCurrY();
-            int delta = lastScrollY - currY;
-            lastScrollY = currY;
-            if (delta != 0) {
-                listener.onScroll(delta);
-            }
-            
-            // scrolling is not finished when it comes to final Y
-            // so, finish it manually 
-            if (Math.abs(currY - scroller.getFinalY()) < MIN_DELTA_FOR_SCROLLING) {
-                currY = scroller.getFinalY();
-                scroller.forceFinished(true);
-            }
-            if (!scroller.isFinished()) {
-                animationHandler.sendEmptyMessage(msg.what);
-            } else if (msg.what == MESSAGE_SCROLL) {
-                justify();
-            } else {
-                finishScrolling();
-            }
-        }
-    };
     
     /**
      * Justifies wheel
@@ -243,10 +228,49 @@ public class WheelScroller {
     /**
      * Finishes scrolling
      */
-    void finishScrolling() {
+    private void finishScrolling() {
         if (isScrollingPerformed) {
             listener.onFinished();
             isScrollingPerformed = false;
         }
     }
+
+    /**
+     * Fling gesture listener callback
+     * @param velocityY Velocity of this fling along the y axis
+     * @see {@link android.view.GestureDetector.OnGestureListener#onFling}
+     */
+    private void onFling(float velocityY) {
+        lastScrollY = 0;
+        final int maxY = 0x7FFFFFFF;
+        final int minY = -maxY;
+        scroller.fling(0, lastScrollY, 0, (int) -velocityY, 0, 0, minY, maxY);
+        setNextMessage(MESSAGE_SCROLL);
+    }
+    
+    
+    private static class WheelGestureListener extends SimpleOnGestureListener {
+        private final WeakReference<WheelScroller> ref;
+
+        WheelGestureListener(final WheelScroller scroller) {
+            this.ref = new WeakReference<WheelScroller>(scroller);
+        }
+
+        @Override public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+            // Do scrolling in onTouchEvent() since onScroll() are not call immediately
+            //  when user touch and move the wheel
+            return true;
+        }
+
+        @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            final WheelScroller scroller = ref.get();
+            if (scroller != null) {
+                scroller.onFling(velocityY);
+                return true;
+            }
+            return false;
+        }
+        
+    }
+    
 }

@@ -26,6 +26,7 @@ import android.view.ViewGroup;
 /**
  * Abstract Wheel adapter.
  */
+@SuppressWarnings("unused")
 public abstract class AbstractWheelAdapter implements WheelViewAdapter {
     // Observers
     private List<DataSetObserver> datasetObservers;

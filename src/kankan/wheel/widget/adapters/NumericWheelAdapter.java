@@ -21,6 +21,7 @@ import android.content.Context;
 /**
  * Numeric Wheel adapter.
  */
+@SuppressWarnings("unused")
 public class NumericWheelAdapter extends AbstractWheelTextAdapter {
     
     /** The default min value */
